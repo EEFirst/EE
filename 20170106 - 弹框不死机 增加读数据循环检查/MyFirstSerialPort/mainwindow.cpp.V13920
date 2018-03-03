@@ -1,0 +1,565 @@
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
+
+int qingling[10] = {0x55,0x01,0x08,0x04,0x00,0x00,0x00,0x00,0x0d,0x51};
+int tingzhi[10] = {0x55,0x01,0x08,0x05,0x00,0x00,0x00,0x00,0x0e,0x51};
+//4id 8sum
+int shezhi[10] = {FRONT,0xff,0x08,0x01,0x00,0x00,0x00,0x00,0x8e,END};
+MainWindow::MainWindow(QWidget *parent) :
+    QMainWindow(parent),
+    ui(new Ui::MainWindow)
+{
+    ui->setupUi(this);
+    uiBaseInit();
+    ui->checkBox_2->setChecked(true);
+    readHex = ui->checkBox_2->checkState();
+    ui->deng1->setReadOnly(true);
+    ui->deng1->setStyleSheet("background-color: rgb(250, 0, 0);font-size:60px;color:blue");
+    ui->deng2->setReadOnly(true);
+    ui->deng2->setStyleSheet("background-color: rgb(250, 0, 0);font-size:60px;color:blue");
+    ui->deng3->setReadOnly(true);
+    ui->deng3->setStyleSheet("background-color: rgb(250, 0, 0);font-size:60px;color:blue");
+    ui->deng4->setReadOnly(true);
+    ui->deng4->setStyleSheet("background-color: rgb(250, 0, 0);font-size:60px;color:blue");
+    ui->deng5->setReadOnly(true);
+    ui->deng5->setStyleSheet("background-color: rgb(250, 0, 0);font-size:60px;color:blue");
+    ui->deng6->setReadOnly(true);
+    ui->deng6->setStyleSheet("background-color: rgb(250, 0, 0);font-size:60px;color:blue");
+    ui->deng7->setReadOnly(true);
+    ui->deng7->setStyleSheet("background-color: rgb(250, 0, 0);font-size:60px;color:blue");
+    ui->deng8->setReadOnly(true);
+    ui->deng8->setStyleSheet("background-color: rgb(250, 0, 0);font-size:60px;color:blue");
+    ui->deng9->setReadOnly(true);
+    ui->deng9->setStyleSheet("background-color: rgb(250, 0, 0);font-size:60px;color:blue");
+}
+
+MainWindow::~MainWindow()
+{
+    delete ui;
+}
+/********************************************************************************
+**********************************基础串口设置*************************************
+********************************************************************************/
+/*
+    函数名：uiInit()
+    参数: 无
+    返回值：无
+    函数功能：初始化UI控件
+*/
+void MainWindow::uiBaseInit()
+{
+    /*****************************UI基础设置**************************************/
+    //通过鼠标点击事件获取串口名
+    portName = new QLabel(ui->Base);
+    portName->setGeometry(20,20,70,30);
+    portName->setText("端口号:");
+    portBox = new mycombobox(ui->Base);
+    portBox->setGeometry(100,20,120,30);
+
+    //设置串口波特率
+    portRate = new QLabel(ui->Base);
+    portRate->setGeometry(20,70,70,30);
+    portRate->setText("波特率:");
+    portRateValue = new QComboBox(ui->Base);
+    portRateValue->setGeometry(100,70,120,30);
+    rateList = {"300","600","1200","2400","4800","9600","19200","38400","43000","56000","57600","115200"};
+    portRateValue->addItems(rateList);
+
+    //设置串口数据位
+    portData = new QLabel(ui->Base);
+    portData->setGeometry(20,120,70,30);
+    portData->setText("数据位:");
+    portDataValue = new QComboBox(ui->Base);
+    portDataValue->setGeometry(100,120,120,30);
+    dataList = {"5","6","7","8"};
+    portDataValue->addItems(dataList);
+
+    //设置串口校验
+    portCheck = new QLabel(ui->Base);
+    portCheck->setGeometry(20,170,70,30);
+    portCheck->setText("位校验:");
+    portCheckValue = new QComboBox(ui->Base);
+    portCheckValue->setGeometry(100,170,120,30);
+    checkList = {"NO","EvenParity","OddParity","SpaceParity","MarkParity"};
+    portCheckValue->addItems(checkList);
+
+    //串口停止位
+    portStop = new QLabel(ui->Base);
+    portStop->setGeometry(20,220,70,30);
+    portStop->setText("停止位:");
+    portStopValue = new QComboBox(ui->Base);
+    portStopValue->setGeometry(100,220,120,30);
+    stopList = {"1","1.5","2"};
+    portStopValue->addItems(stopList);
+
+    //流控制
+    porStream = new QLabel(ui->Base);
+    porStream->setGeometry(20,270,70,30);
+    porStream->setText("流控制:");
+    portStreamValue = new QComboBox(ui->Base);
+    portStreamValue->setGeometry(100,270,120,30);
+    streamList = {"NO","Soft","Hard"};
+    portStreamValue->addItems(streamList);
+
+    //打开、关闭、发送、清空
+    openButton = new QPushButton(ui->Base);
+    openButton->setText("打开");
+    openButton->setGeometry(20,320,100,30);
+    closeButton = new QPushButton(ui->Base);
+    closeButton->setText("关闭");
+    closeButton->setGeometry(120,320,100,30);
+    sendButton = new QPushButton(ui->Base);
+    sendButton->setText("发送");
+    sendButton->setGeometry(20,365,100,30);
+    clearButton = new QPushButton(ui->Base);
+    clearButton->setText("清空");
+    clearButton->setGeometry(120,365,100,30);
+    /****************************************************************************/
+
+    /******************************连接信号与槽************************************/
+    connect(openButton,SIGNAL(clicked(bool)),this,SLOT(openFunction()));
+    connect(closeButton,SIGNAL(clicked(bool)),this,SLOT(closeFunction()));
+    connect(sendButton,SIGNAL(clicked(bool)),this,SLOT(sendFunction()));
+    connect(clearButton,SIGNAL(clicked(bool)),this,SLOT(clearFunction()));
+    connect(&myPort, SIGNAL(readyRead()), this, SLOT(readFunction()));
+    connect(&portTimer,SIGNAL(timeout()),this,SLOT(portTimerFunction()));
+    connect(&setTimer,SIGNAL(timeout()),this,SLOT(setTimerFunction()));
+    /****************************************************************************/
+
+    /*********************************提示***************************************/
+    //设置接收区和发送区的提示字符
+    ui->readEdit->setPlaceholderText("接收区");
+    ui->readEdit->setReadOnly(true);             //设置接收区为只读
+    ui->writeEdit->setPlaceholderText("发送区");
+    /****************************************************************************/
+
+    //未打开串口前，设置关闭、发送为unEnabled
+    closeButton->setEnabled(false);
+    sendButton->setEnabled(false);
+    ui->timerStart->setEnabled(false);
+    ui->timerStop->setEnabled(false);
+
+    //设置串口默认初始值
+    portRateValue->setCurrentText("9600");
+    portDataValue->setCurrentText("8");
+    portCheckValue->setCurrentText("NO");
+    portStopValue->setCurrentText("1");
+    portStreamValue->setCurrentText("NO");
+    ui->timerEdit->setText("20");
+    ui->cijizhouqi->setText("20");
+}
+
+/*
+    函数名：openFunction
+    参数：无
+    返回值：无
+    功能：打开串口
+*/
+void MainWindow::openFunction()
+{
+    //获取串口名
+    myPort.setPortName(portBox->currentText());
+    //设置波特率
+    myPort.setBaudRate(portRateValue->currentText().toInt());
+    //设置串口数据位
+    myPort.setDataBits(dataMap[portDataValue->currentText()]);
+    //设置校验位
+    myPort.setParity(checkMap[portCheckValue->currentText()]);
+    //设置串口停止位
+    myPort.setStopBits(stopMap[portStopValue->currentText()]);
+    //设置流控制
+    myPort.setFlowControl(FlopMap[portStreamValue->currentText()]);
+
+    //打开串口
+    if(myPort.open(QIODevice::ReadWrite)){
+        //打开串口后，设置串口参数不可更改
+        portBox->setEnabled(false);
+        portRateValue->setEnabled(false);
+        portDataValue->setEnabled(false);
+        portCheckValue->setEnabled(false);
+        portStopValue->setEnabled(false);
+        portStreamValue->setEnabled(false);
+        //串口打开后unEnabled打开按键
+        openButton->setEnabled(false);
+        //打开串口后，设置关闭、发送为Enabled
+        closeButton->setEnabled(true);
+        sendButton->setEnabled(true);
+        ui->timerStart->setEnabled(true);
+        ui->timerStop->setEnabled(false);
+    }else{
+        QMessageBox::warning(this,"警告","打开串口失败");
+    }
+}
+
+/*
+    函数名：closeFunction
+    参数：无
+    返回值：无
+    功能：关闭串口
+*/
+void MainWindow::closeFunction()
+{
+    //关闭串口
+    myPort.close();
+
+    //关闭串口后，设置串口参数为可更改
+    portBox->setEnabled(true);
+    portRateValue->setEnabled(true);
+    portDataValue->setEnabled(true);
+    portCheckValue->setEnabled(true);
+    portStopValue->setEnabled(true);
+    portStreamValue->setEnabled(true);
+
+    //未打开串口前，设置关闭、发送为unEnabled
+    closeButton->setEnabled(false);
+    sendButton->setEnabled(false);
+
+    //串口关闭后，Enabled打开按键
+    openButton->setEnabled(true);
+}
+
+/*
+    函数名：sendFunction
+    参数：无
+    返回值：无
+    功能：发送数据
+*/
+void MainWindow::sendFunction()
+{
+    //    if(sendHex){
+    //        sendTemp = ui->writeEdit->toPlainText();
+    //        sendBuf = QByteArray::fromHex(sendTemp.toLatin1());
+    //    }else{
+    //        sendTemp = ui->writeEdit->toPlainText();
+    //        sendBuf = sendTemp.toLatin1();
+    //    }
+    //    myPort.write(sendBuf);
+    //    sendBuf.clear();
+
+    idFlag[0] = 0;
+    idFlag[1] = ui->caiji1check->isChecked();
+    idFlag[2] = ui->caiji2check->isChecked();
+    idFlag[3] = ui->caiji3check->isChecked();
+    idFlag[4] = ui->caiji4check->isChecked();
+    idFlag[5] = ui->caiji5check->isChecked();
+    idFlag[6] = ui->caiji6check->isChecked();
+    idFlag[7] = ui->caiji7check->isChecked();
+    idFlag[8] = ui->caiji8check->isChecked();
+    idFlag[9] = ui->caiji9check->isChecked();
+
+    portDataDeal portData;
+    sendBuf = portData.timerSend(idFlag,&numCode,&port_exe_number);
+    myPort.write(sendBuf);
+}
+
+/*
+    函数名：readFunction()
+    参数：无
+    返回值：无
+    功能：接收串口数据
+*/
+void MainWindow::readFunction()
+{
+    QByteArray temp = myPort.readAll();
+
+    read_readBuf.append(temp);
+
+    if(read_readBuf.size()<21){
+        return;
+    }
+    if(read_readBuf.contains(FRONT))
+    {
+        int num = read_readBuf.indexOf(FRONT);
+
+        if(read_readBuf[num+9] == END){
+            QByteArray readTemp;
+            for(int i = 0;i < 10;i++){
+                readTemp[i] = read_readBuf[num+i];
+            }
+            //  portDataDeal check;
+            int sum = 0;
+            for(int i = 1;i<8;i++){
+                sum += readTemp[i];
+            }
+            if(sum == readTemp[8]){
+                readBuf = readTemp;
+                read_readBuf.remove(0,num+10);
+            }
+        }
+    }
+
+    portDataDeal portDeal;
+    portDeal.codeDeal(&id,&flag,&mydata,readBuf);
+    switch (id) {
+    case 1:
+        switch (flag) {
+        case 0x84:
+            ui->changdu1->setText(mydata);
+            break;
+        case 0x85:
+            ui->sudu1->setText(mydata);
+            break;
+        default:
+            break;
+        }
+        break;
+    case 2:
+        switch (flag) {
+        case 0x84:
+            ui->changdu1->setText(mydata);
+            break;
+        case 0x85:
+            ui->sudu1->setText(mydata);
+            break;
+        default:
+            break;
+        }
+        break;
+        break;
+    default:
+        break;
+    }
+
+    temp.clear();
+    if(readHex){
+        QString readData = "";
+        readTemp = readBuf.toHex();
+        for(int i = 0;i<readTemp.length();i+=2)
+        {
+            QString st = readTemp.mid(i,2);//从i这个位置开始，返回2个字符串
+            readData += st;
+            readData += " ";
+        }
+        readTemp.clear();
+        readTemp = readData;
+    }else{
+        readTemp = readBuf;
+    }
+    ui->readEdit->append(readTemp);
+    ui->readEdit01->append(readTemp);
+    if(setNumber == 1 && !readTemp.isEmpty() && readTemp[4] == 0x01){
+        setNumber = 0;
+        QMessageBox::warning(this,"提示","设置ID成功");
+    }else{
+        setNumber = 0;
+        QMessageBox::warning(this,"警告","设置ID失败");
+    }
+    readTemp.clear();
+}
+
+/*
+    函数名：portTimerFunction
+    参数：无
+    返回值：无
+    功能：定时器出发定时发送信号
+*/
+void MainWindow::portTimerFunction()
+{
+    sendButton->clicked();
+}
+
+void MainWindow::setTimerFunction()
+{
+    //4id 8sum
+    //int shezhi[10] = {FRONT,0xff,0x08,0x01,0x00,0x00,0x00,0x00,0x8e,END};
+
+    shezhi[4] = ui->shebeihao->text().toInt();
+    int temp = 0;
+    for(int i = 1;i < 8;i ++){
+        temp+=shezhi[i];
+    }
+    shezhi[8] = temp;
+
+    QByteArray sendBuf;
+    sendBuf.resize(10);
+    for(int i = 0;i<10;i++){
+        sendBuf[i] = shezhi[i];
+    }
+    myPort.write(sendBuf);
+    std::cout<<shezhi<<std::endl;
+    setTimer.stop();
+}
+
+/*
+    函数名：clearFunction()
+    参数：无
+    返回值：无
+    功能：清空接收区
+*/
+void MainWindow::clearFunction()
+{
+    ui->readEdit->clear();
+}
+
+/*
+    函数名：on_checkBox_clicked()
+    参数：bool checked
+    返回值：无
+    函数功能：检查是否以16进制发送数据
+*/
+void MainWindow::on_checkBox_clicked(bool checked)
+{
+    sendHex = checked;
+}
+
+/*
+    函数名：on_checkBox_2_clicked()
+    参数：bool checked
+    返回值：无
+    函数功能：检查是否以16进制显示数据
+*/
+void MainWindow::on_checkBox_2_clicked(bool checked)
+{
+    readHex = checked;
+}
+
+/***********************************************************************/
+//此部分开始与主体框架无关，加入定时发送功能
+/*
+    函数名:on_timerStart_clicked
+    参数：无
+    返回值：无
+    功能：单击打开定时器
+*/
+void MainWindow::on_timerStart_clicked()
+{
+    ui->timerStop->setEnabled(true);
+    ui->timerStart->setEnabled(false);
+    portTimer.start(ui->cijizhouqi->text().toInt());
+}
+
+/*
+    函数名:on_timerStop_clicked
+    参数：无
+    返回值：无
+    功能：单击时关闭定时器
+*/
+void MainWindow::on_timerStop_clicked()
+{
+    ui->timerStart->setEnabled(true);
+    ui->timerStop->setEnabled(false);
+    portTimer.stop();
+}
+
+/********************************************************************************
+*********************************采集设置*****************************************
+********************************************************************************/
+
+void MainWindow::on_caiji1qingling_clicked()
+{
+    portDataDeal myDataDeal;
+    sendBuf = myDataDeal.send(qingling,0x01);
+    myPort.write(sendBuf);
+    ui->changdu1->clear();
+    ui->sudu1->clear();
+}
+
+void MainWindow::on_caijiyitingzhi_clicked()
+{
+    portDataDeal myDataDeal;
+    sendBuf = myDataDeal.send(tingzhi,0x01);
+    myPort.write(sendBuf);
+}
+
+void MainWindow::on_caiji1kaishi_clicked()
+{
+    kaishi_Flag=!kaishi_Flag;
+    if(!kaishi_Flag)
+    {
+        ui->caiji1kaishi->setText("开始");
+        portTimer.stop();
+    }
+    else
+    {
+
+        portTimer.start(ui->timerEdit->text().toInt());
+        ui->caiji1kaishi->setText("暂停");
+        //kaishi_num_code=1;
+        numCode = 1;
+    }
+}
+
+void MainWindow::on_quanxuan_clicked()
+{
+    ui->caiji1check->setChecked(true);
+    ui->caiji2check->setChecked(true);
+    ui->caiji3check->setChecked(true);
+    ui->caiji4check->setChecked(true);
+    ui->caiji5check->setChecked(true);
+    ui->caiji6check->setChecked(true);
+    ui->caiji7check->setChecked(true);
+    ui->caiji8check->setChecked(true);
+    ui->caiji9check->setChecked(true);
+}
+
+void MainWindow::on_qingkongxuanxiang_clicked()
+{
+    ui->caiji1check->setChecked(false);
+    ui->caiji2check->setChecked(false);
+    ui->caiji3check->setChecked(false);
+    ui->caiji4check->setChecked(false);
+    ui->caiji5check->setChecked(false);
+    ui->caiji6check->setChecked(false);
+    ui->caiji7check->setChecked(false);
+    ui->caiji8check->setChecked(false);
+    ui->caiji9check->setChecked(false);
+}
+
+void MainWindow::on_quanxuan_2_clicked()
+{
+
+}
+
+void MainWindow::on_zidongfasong_clicked()
+{
+    idFlag[0] = 0;
+    idFlag[1] = ui->caiji1check->isChecked();
+    idFlag[2] = ui->caiji2check->isChecked();
+    idFlag[3] = ui->caiji3check->isChecked();
+    idFlag[4] = ui->caiji4check->isChecked();
+    idFlag[5] = ui->caiji5check->isChecked();
+    idFlag[6] = ui->caiji6check->isChecked();
+    idFlag[7] = ui->caiji7check->isChecked();
+    idFlag[8] = ui->caiji8check->isChecked();
+    idFlag[9] = ui->caiji9check->isChecked();
+
+    QVector<QLineEdit *> myVector;
+    myVector.append(ui->deng1);
+    myVector.append(ui->deng2);
+    myVector.append(ui->deng3);
+    myVector.append(ui->deng4);
+    myVector.append(ui->deng5);
+    myVector.append(ui->deng6);
+    myVector.append(ui->deng7);
+    myVector.append(ui->deng8);
+    myVector.append(ui->deng9);
+
+    zidong=!zidong;
+    if(!zidong)
+    {
+        ui->zidongfasong->setText("开始");
+        portTimer.stop();
+        for(int i = 1;i < 10;i++){
+            myVector[i-1]->setStyleSheet("background-color: rgb(255, 0, 0);font-size:60px;color:blue");
+        }
+    }
+    else
+    {
+        for(int i = 1;i < 10;i++){
+            if(idFlag[i]){
+                myVector[i-1]->setStyleSheet("background-color: rgb(0, 255, 0);font-size:60px;color:blue");
+            }
+        }
+
+        ui->zidongfasong->setText("停止");
+        portTimer.start(ui->cijizhouqi->text().toInt());
+        numCode = 1;
+        port_exe_number = 1;
+    }
+}
+
+void MainWindow::on_shezhiButton_clicked()
+{
+        setNumber = 1;
+    setTimer.start(200);
+}
